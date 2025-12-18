@@ -1,88 +1,76 @@
-const express = require("express");
-const mdb = require("mongoose");
-const Signup = require("./models/SignupSchema");
-const bcrypt = require("bcrypt");
-const cors = require("cors")
-const app = express();
-const PORT = 8001;
+const express = require('express');
+const mdb=require('mongoose');
+const bcrypt = require('bcrypt');
+const signup_schema = require('./models/SignupSchema');
 
+const app=express();
+const PORT=process.env.PORT || 8001;
+
+// Middleware to parse JSON
 app.use(express.json());
-app.use(cors())
 
-mdb
-  .connect("mongodb://localhost:27017/seceDec2025")
-  .then(() => console.log("MongoDB Connection Successful"))
-  .catch((err) => console.log("MongoDB Connection Unsuccessful", err));
-
-app.get("/", (req, res) => {
-  res.send("Server started successfully");
-});
-
-app.post("/signup", async (req, res) => {
-  const { email, username, password } = req.body;
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const newSignup = new Signup({
-    email: email,
-    username: username,
-    password: hashedPassword,
-  });
-  newSignup.save();
-  res.status(200).json({ Message: "Signup Successful", isSignup: true });
-});
-
-app.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const existingUser = await Signup.findOne({ email: email });
-    console.log(existingUser);
-
-    if (existingUser) {
-      const isValidPassword = await bcrypt.compare(
-        password,
-        existingUser.password
-      );
-      console.log(isValidPassword);
-
-      if (isValidPassword) {
-        res.status(200).json({
-          message: "Login Successful",
-          isLoggedIn: true,
-        });
-      } else {
-        res.status(401).json({
-          message: "Incorrect Password",
-          isLoggedIn: false,
-        });
-      }
+// CORS middleware to allow frontend connections
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    if (req.method === 'OPTIONS') {
+        res.sendStatus(200);
     } else {
-      res.status(404).json({
-        message: "User not Found Signup First",
-        isLoggedIn: false,
-      });
+        next();
     }
-  } catch (error) {
-    console.log("Login Error");
-    res.status(500).json({
-      message: "Login Error",
-      isLoggedIn: false,
-    });
-  }
 });
+console.log('Attempting MongoDB connection...');
+mdb.connect("mongodb+srv://kanishkasekar:kani123@cluster0.zmysryg.mongodb.net/").then(()=>{
+    console.log("Mongodb connection successfull")
+}).catch((err)=>{
+    console.log("Mongodb connection unsuccessful",err)
+})
+app.get('/',(req,res)=>{
+    res.send("Welcome to backend server")
+})
+app.get('/json',(req,res)=>{
+    res.json({
+     "college":"sece",
+     "Dept":"Cys",
+     "StuCount":"64"
+    })  
+})
+app.get('/static',(req,res)=>{
+   res.send('Static file endpoint - update path as needed')
+    })
 
-app.get("/json", (req, res) => {
-  res.json({
-    College: "Sece",
-    Dept: "CYS",
-    StuCount: "64",
-  });
-});
+app.get('/signup',(req, res)=>{
+    res.send("Signup page - Use POST method to submit signup data")
+})
 
-app.get("/static", (req, res) => {
-  res.sendFile(
-    "/Users/prasanthksp/Documents/RAMPeX-Parent-Folder/Trainings/SECE/SECE_MERN_DEC_2025/seceBackend2025Dec/index.html"
-  );
-});
+app.post('/signup', async (req, res)=>{
+    try {
+        const{email,username,password} = req.body;
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const newUser = new signup_schema({email, username, password: hashedPassword});
+        await newUser.save();
+        res.json({"Message":"Signup successful", "data": {email, username}});
+    } catch (error) {
+        res.status(400).json({"Message":"Signup failed", "error": error.message});
+    }
+})
 
-app.listen(PORT, () => {
-  console.log(`Server Started Successfully in the port ${PORT}`);
-});
+app.post('/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await signup_schema.findOne({ email });
+        
+        if (user && await bcrypt.compare(password, user.password)) {
+            res.json({"Message":"Login successful", "user": {email: user.email, username: user.username}});
+        } else {
+            res.status(401).json({"Message":"Invalid credentials"});
+        }
+    } catch (error) {
+        res.status(500).json({"Message":"Server error", "error": error.message});
+    }
+})
+
+app.listen(PORT,()=>{
+    console.log(`Server is running on port ${PORT}`)
+})
